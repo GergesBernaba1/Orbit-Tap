@@ -13,6 +13,18 @@ import '../models/installed_app.dart';
 import '../models/vault_item.dart';
 import 'security_service.dart';
 
+class ImportMediaResult {
+  const ImportMediaResult({
+    required this.items,
+    required this.importedCount,
+    required this.sourceDeletionFailures,
+  });
+
+  final List<VaultItem> items;
+  final int importedCount;
+  final int sourceDeletionFailures;
+}
+
 class VaultRepository {
   final Uuid _uuid = const Uuid();
   final AesGcm _aesGcm = AesGcm.with256bits();
@@ -36,7 +48,7 @@ class VaultRepository {
       ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
   }
 
-  Future<List<VaultItem>> importMedia({
+  Future<ImportMediaResult> importMedia({
     required SecurityService securityService,
     required List<String> sourcePaths,
     required VaultItemType type,
@@ -45,6 +57,7 @@ class VaultRepository {
     final secretKey = securityService.requireSessionKey();
     final filesDir = await _filesDir();
     final updated = List<VaultItem>.from(currentItems);
+    final importedSourceFiles = <File>[];
 
     for (final sourcePath in sourcePaths) {
       final sourceFile = File(sourcePath);
@@ -74,10 +87,28 @@ class VaultRepository {
           },
         ),
       );
+      importedSourceFiles.add(sourceFile);
     }
 
     await _saveIndex(updated, secretKey);
-    return updated..sort((left, right) => right.createdAt.compareTo(left.createdAt));
+
+    var sourceDeletionFailures = 0;
+    for (final sourceFile in importedSourceFiles) {
+      try {
+        if (await sourceFile.exists()) {
+          await sourceFile.delete();
+        }
+      } catch (_) {
+        sourceDeletionFailures += 1;
+      }
+    }
+
+    updated.sort((left, right) => right.createdAt.compareTo(left.createdAt));
+    return ImportMediaResult(
+      items: updated,
+      importedCount: importedSourceFiles.length,
+      sourceDeletionFailures: sourceDeletionFailures,
+    );
   }
 
   Future<List<VaultItem>> addContact({
@@ -187,6 +218,12 @@ class VaultRepository {
     if (!await root.exists()) {
       await root.create(recursive: true);
     }
+
+    final noMediaFile = File(path.join(root.path, '.nomedia'));
+    if (!await noMediaFile.exists()) {
+      await noMediaFile.writeAsString('');
+    }
+
     return root;
   }
 

@@ -8,6 +8,7 @@ import '../models/device_contact.dart';
 import '../models/installed_app.dart';
 import '../models/vault_item.dart';
 import '../services/contact_service.dart';
+import '../services/media_export_service.dart';
 import '../services/private_apps_service.dart';
 import '../services/security_service.dart';
 import '../services/vault_repository.dart';
@@ -20,15 +21,18 @@ class VaultController extends ChangeNotifier {
     required VaultRepository vaultRepository,
     required ContactService contactService,
     required PrivateAppsService privateAppsService,
+    required MediaExportService mediaExportService,
   })  : _securityService = securityService,
         _vaultRepository = vaultRepository,
         _contactService = contactService,
-        _privateAppsService = privateAppsService;
+        _privateAppsService = privateAppsService,
+        _mediaExportService = mediaExportService;
 
   final SecurityService _securityService;
   final VaultRepository _vaultRepository;
   final ContactService _contactService;
   final PrivateAppsService _privateAppsService;
+  final MediaExportService _mediaExportService;
 
   AppStage _stage = AppStage.loading;
   bool _busy = false;
@@ -177,6 +181,40 @@ class VaultController extends ChangeNotifier {
     );
   }
 
+  Future<String> unhideMedia(VaultItem item) async {
+    if (item.type != VaultItemType.image && item.type != VaultItemType.video) {
+      return 'Only images and videos can be restored to the gallery.';
+    }
+
+    _setBusy(true);
+    _errorMessage = null;
+    try {
+      final bytes = await _vaultRepository.readMediaBytes(
+        securityService: _securityService,
+        item: item,
+      );
+      final saved = await _mediaExportService.unhideToGallery(
+        item: item,
+        bytes: bytes,
+      );
+      if (!saved) {
+        return 'Could not restore ${item.title} to the gallery.';
+      }
+
+      _items = await _vaultRepository.deleteItem(
+        securityService: _securityService,
+        target: item,
+        currentItems: _items,
+      );
+      notifyListeners();
+      return '${item.title} was restored to the gallery and removed from the vault.';
+    } catch (error) {
+      return error.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   Future<bool> openPrivateApp(VaultItem item) async {
     final packageName = item.metadata['packageName'] as String?;
     if (packageName == null) {
@@ -212,12 +250,20 @@ class VaultController extends ChangeNotifier {
         return;
       }
 
-      _items = await _vaultRepository.importMedia(
+      final importResult = await _vaultRepository.importMedia(
         securityService: _securityService,
         sourcePaths: existingPaths,
         type: type,
         currentItems: _items,
       );
+      _items = importResult.items;
+
+      if (importResult.importedCount > 0 &&
+          importResult.sourceDeletionFailures > 0) {
+        _errorMessage =
+            'Imported ${importResult.importedCount} file(s), but ${importResult.sourceDeletionFailures} original file(s) could not be removed from shared storage.';
+      }
+
       notifyListeners();
     });
   }

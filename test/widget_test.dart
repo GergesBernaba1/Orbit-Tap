@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hidenfiles/src/models/vault_item.dart';
+import 'package:orbit_tap/src/models/vault_item.dart';
 
 void main() {
   test('vault item serializes type names', () {
@@ -15,3 +15,4 @@ void main() {
     expect(item.toJson()['type'], 'image');
   });
 }
+

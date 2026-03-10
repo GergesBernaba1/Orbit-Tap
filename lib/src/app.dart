@@ -4,19 +4,20 @@ import 'screens/decoy_game_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/contact_service.dart';
+import 'services/media_export_service.dart';
 import 'services/private_apps_service.dart';
 import 'services/security_service.dart';
 import 'services/vault_repository.dart';
 import 'state/vault_controller.dart';
 
-class HiddenFilesApp extends StatefulWidget {
-  const HiddenFilesApp({super.key});
+class OrbitTapApp extends StatefulWidget {
+  const OrbitTapApp({super.key});
 
   @override
-  State<HiddenFilesApp> createState() => _HiddenFilesAppState();
+  State<OrbitTapApp> createState() => _OrbitTapAppState();
 }
 
-class _HiddenFilesAppState extends State<HiddenFilesApp> {
+class _OrbitTapAppState extends State<OrbitTapApp> {
   late final VaultController _controller;
 
   @override
@@ -27,6 +28,7 @@ class _HiddenFilesAppState extends State<HiddenFilesApp> {
       vaultRepository: VaultRepository(),
       contactService: ContactService(),
       privateAppsService: PrivateAppsService(),
+      mediaExportService: MediaExportService(),
     )..initialize();
   }
 

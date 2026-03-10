@@ -7,6 +7,10 @@ on:
       - main
       - master
 
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -21,6 +25,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -33,35 +42,14 @@ jobs:
       - name: Generate Android platform files
         run: flutter create . --platforms android --org com.orbittap.app
 
+      - name: Patch generated Android project
+        run: python .github/scripts/patch_generated_android.py
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Patch device_apps Android config
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          matches = list(Path.home().glob('.pub-cache/hosted/pub.dev/device_apps-*/android/build.gradle'))
-          if not matches:
-              raise SystemExit('device_apps build.gradle not found in pub cache')
-
-          gradle_file = matches[0]
-          content = gradle_file.read_text()
-
-          if 'namespace ' not in content:
-              content = content.replace(
-                  'android {',
-                  "android {\n    namespace 'fr.g123k.deviceapps'",
-                  1,
-              )
-
-          content = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 34', content)
-          content = re.sub(r'targetSdkVersion\s+\d+', 'targetSdkVersion 34', content)
-
-          gradle_file.write_text(content)
-          print(f'Patched {gradle_file}')
-          PY
+        run: python .github/scripts/patch_device_apps.py
 
       - name: Run tests
         run: flutter test

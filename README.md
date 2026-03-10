@@ -1,4 +1,4 @@
-# Hidden Files Vault
+# Orbit Tap
 
 Suggested public app name: `Orbit Tap`
 
@@ -50,3 +50,4 @@ After pushing this project to GitHub:
 2. Go to `Actions`.
 3. Run `Build APK` manually, or push to `main` / `master`.
 4. Download the `orbit-tap-release-apk` artifact from the workflow run.
+

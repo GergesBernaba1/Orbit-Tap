@@ -368,9 +368,40 @@ class _VaultListPage extends StatelessWidget {
                 DateFormat('MMM d, yyyy').format(item.createdAt),
               ].join('  |  '),
             ),
-            trailing: IconButton(
-              onPressed: () => controller.deleteItem(item),
-              icon: const Icon(Icons.delete_outline),
+            trailing: PopupMenuButton<_MediaAction>(
+              onSelected: (action) async {
+                switch (action) {
+                  case _MediaAction.unhide:
+                    final message = await controller.unhideMedia(item);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
+                    }
+                    break;
+                  case _MediaAction.delete:
+                    await controller.deleteItem(item);
+                    break;
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<_MediaAction>(
+                  value: _MediaAction.unhide,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.file_upload_outlined),
+                    title: Text('Unhide'),
+                  ),
+                ),
+                PopupMenuItem<_MediaAction>(
+                  value: _MediaAction.delete,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Delete'),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -378,6 +409,8 @@ class _VaultListPage extends StatelessWidget {
     );
   }
 }
+
+enum _MediaAction { unhide, delete }
 
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({
@@ -659,4 +692,3 @@ String _formatBytes(int bytes) {
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
-

@@ -4,5 +4,6 @@ import 'src/app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const HiddenFilesApp());
+  runApp(const OrbitTapApp());
 }
+
