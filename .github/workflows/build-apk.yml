@@ -36,10 +36,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Patch device_apps Android namespace
+      - name: Patch device_apps Android config
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           matches = list(Path.home().glob('.pub-cache/hosted/pub.dev/device_apps-*/android/build.gradle'))
           if not matches:
@@ -47,13 +48,18 @@ jobs:
 
           gradle_file = matches[0]
           content = gradle_file.read_text()
+
           if 'namespace ' not in content:
               content = content.replace(
                   'android {',
                   "android {\n    namespace 'fr.g123k.deviceapps'",
                   1,
               )
-              gradle_file.write_text(content)
+
+          content = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 34', content)
+          content = re.sub(r'targetSdkVersion\s+\d+', 'targetSdkVersion 34', content)
+
+          gradle_file.write_text(content)
           print(f'Patched {gradle_file}')
           PY
 
