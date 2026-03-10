@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="270" fill="url(#ringGlow)" opacity="0.18"/>
+  <circle cx="512" cy="512" r="236" stroke="url(#orbit)" stroke-width="24" opacity="0.9"/>
+  <circle cx="512" cy="512" r="146" fill="url(#core)"/>
+  <circle cx="512" cy="512" r="72" fill="#0B132B"/>
+  <circle cx="722" cy="368" r="58" fill="url(#pulse)"/>
+  <circle cx="722" cy="368" r="92" stroke="#6FFFE9" stroke-opacity="0.32" stroke-width="16"/>
+  <circle cx="722" cy="368" r="138" stroke="#6FFFE9" stroke-opacity="0.14" stroke-width="12"/>
+  <path d="M382 650C422 694 464 718 512 718C591 718 655 654 655 575C655 534 638 496 609 468" stroke="#F4F7FB" stroke-width="32" stroke-linecap="round"/>
+  <path d="M617 420L632 474L686 459" stroke="#F4F7FB" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="18" fill="#F4F7FB"/>
+  <defs>
+    <linearGradient id="bg" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B132B"/>
+      <stop offset="0.52" stop-color="#1C2541"/>
+      <stop offset="1" stop-color="#3A506B"/>
+    </linearGradient>
+    <radialGradient id="ringGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 512) rotate(90) scale(270)">
+      <stop stop-color="#6FFFE9"/>
+      <stop offset="1" stop-color="#6FFFE9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="orbit" x1="300" y1="238" x2="744" y2="786" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BC0BE"/>
+      <stop offset="1" stop-color="#6FFFE9"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 470) rotate(90) scale(188)">
+      <stop stop-color="#F4F7FB"/>
+      <stop offset="0.38" stop-color="#CDEEF0"/>
+      <stop offset="1" stop-color="#5BC0BE"/>
+    </radialGradient>
+    <radialGradient id="pulse" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(722 368) rotate(90) scale(58)">
+      <stop stop-color="#F4F7FB"/>
+      <stop offset="1" stop-color="#6FFFE9"/>
+    </radialGradient>
+  </defs>
+</svg>
