@@ -3,7 +3,7 @@ import 'package:hidenfiles/src/models/vault_item.dart';
 
 void main() {
   test('vault item serializes type names', () {
-    const item = VaultItem(
+    final item = VaultItem(
       id: '1',
       type: VaultItemType.image,
       title: 'secret',
