@@ -39,3 +39,14 @@ This workspace did not include a Flutter SDK, so the app code was created manual
 - decoy mode / disguised launcher icon
 - secure export / restore flow
 - Android device-owner build for managed-device app policies
+
+## Build APK from GitHub
+
+The repo includes a GitHub Actions workflow at `.github/workflows/build-apk.yml`.
+
+After pushing this project to GitHub:
+
+1. Open the repository on GitHub.
+2. Go to `Actions`.
+3. Run `Build APK` manually, or push to `main` / `master`.
+4. Download the `orbit-tap-release-apk` artifact from the workflow run.
