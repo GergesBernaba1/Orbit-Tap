@@ -66,39 +66,23 @@ import android.app.Activity
 import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.Intent
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Settings
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {{
+    private val deleteRequestCode = 4821
     private var pendingDeleteResult: MethodChannel.Result? = null
     private var pendingDeleteFailures: List<String> = emptyList()
     private var pendingDeleteConfirmUris: List<String> = emptyList()
-
-    private val deleteRequestLauncher = registerForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) {{ activityResult ->
-        val result = pendingDeleteResult ?: return@registerForActivityResult
-        val failed = if (activityResult.resultCode == Activity.RESULT_OK) {{
-            pendingDeleteFailures
-        }} else {{
-            (pendingDeleteFailures + pendingDeleteConfirmUris).distinct()
-        }}
-
-        pendingDeleteResult = null
-        pendingDeleteFailures = emptyList()
-        pendingDeleteConfirmUris = emptyList()
-        result.success(failed)
-    }}
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {{
         super.configureFlutterEngine(flutterEngine)
@@ -122,6 +106,26 @@ class MainActivity : FlutterActivity() {{
             }}
     }}
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {{
+        if (requestCode == deleteRequestCode) {{
+            val result = pendingDeleteResult
+            if (result != null) {{
+                val failed = if (resultCode == Activity.RESULT_OK) {{
+                    pendingDeleteFailures
+                }} else {{
+                    (pendingDeleteFailures + pendingDeleteConfirmUris).distinct()
+                }}
+                pendingDeleteResult = null
+                pendingDeleteFailures = emptyList()
+                pendingDeleteConfirmUris = emptyList()
+                result.success(failed)
+            }}
+            return
+        }}
+
+        super.onActivityResult(requestCode, resultCode, data)
+    }}
+
     private fun hasAllFilesAccess(): Boolean {{
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
     }}
@@ -133,7 +137,7 @@ class MainActivity : FlutterActivity() {{
 
         val directIntent = Intent(
             Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-            Uri.parse("package:$APP_PACKAGE")
+            Uri.fromParts("package", packageName, null)
         ).apply {{
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }}
@@ -194,8 +198,17 @@ class MainActivity : FlutterActivity() {{
             pendingDeleteResult = result
             pendingDeleteFailures = failed.distinct()
             pendingDeleteConfirmUris = confirmUriStrings.distinct()
-            val request = IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-            deleteRequestLauncher.launch(request)
+            startIntentSenderForResult(
+                pendingIntent.intentSender,
+                deleteRequestCode,
+                null,
+                0,
+                0,
+                0,
+                null,
+            )
+        }} catch (_: IntentSender.SendIntentException) {{
+            result.success((failed + confirmUriStrings).distinct())
         }} catch (_: Exception) {{
             result.success((failed + confirmUriStrings).distinct())
         }}
