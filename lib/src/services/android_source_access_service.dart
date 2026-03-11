@@ -22,4 +22,28 @@ class AndroidSourceAccessService {
       return identifiers;
     }
   }
+
+  Future<bool> hasAllFilesAccess() async {
+    if (!Platform.isAndroid) {
+      return true;
+    }
+
+    try {
+      return await _channel.invokeMethod<bool>('hasAllFilesAccess') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> openAllFilesAccessSettings() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      return await _channel.invokeMethod<bool>('openAllFilesAccessSettings') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

@@ -288,6 +288,52 @@ class _OverviewPage extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: FutureBuilder<bool>(
+              future: controller.hasAllFilesAccess(),
+              builder: (context, snapshot) {
+                final hasAccess = snapshot.data ?? false;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Android storage access',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasAccess
+                          ? 'All files access is enabled. This gives Orbit Tap the best chance to move and remove originals from shared storage.'
+                          : 'Enable all files access to improve file move and delete reliability on Android, especially when hiding media from shared storage.',
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: hasAccess
+                          ? null
+                          : () async {
+                              await controller.requestAllFilesAccess();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Grant all files access in Android settings, then return to Orbit Tap.'),
+                                  ),
+                                );
+                              }
+                            },
+                      icon: const Icon(Icons.folder_open),
+                      label: Text(hasAccess ? 'All files access enabled' : 'Grant all files access'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -800,5 +846,6 @@ String _formatBytes(int bytes) {
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
+
 
 

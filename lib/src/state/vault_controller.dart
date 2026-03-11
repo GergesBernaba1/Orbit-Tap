@@ -64,6 +64,18 @@ class VaultController extends ChangeNotifier {
     return _vaultRepository.folderEntries(item);
   }
 
+  Future<bool> hasAllFilesAccess() {
+    return _androidSourceAccessService.hasAllFilesAccess();
+  }
+
+  Future<void> requestAllFilesAccess() async {
+    final opened = await _androidSourceAccessService.openAllFilesAccessSettings();
+    if (!opened) {
+      _errorMessage = 'Could not open Android all files access settings.';
+      notifyListeners();
+    }
+  }
+
   Future<void> initialize() async {
     _setBusy(true);
     try {
@@ -367,7 +379,7 @@ class VaultController extends ChangeNotifier {
 
       if (importResult.importedCount > 0 && remainingFailures > 0) {
         _errorMessage =
-            'Moved ${importResult.importedCount} file(s) into the encrypted vault, but ${remainingFailures} original file(s) may still be visible because Android did not grant full removal access.';
+            'Moved ${importResult.importedCount} file(s) into the encrypted vault, but ${remainingFailures} original file(s) may still be visible because Android denied or did not offer full delete access for the original media.';
       }
 
       notifyListeners();
@@ -451,3 +463,7 @@ class VaultController extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+
+
+
