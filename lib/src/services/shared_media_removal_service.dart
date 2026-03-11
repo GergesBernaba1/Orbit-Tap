@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:path/path.dart' as path;
 import 'package:photo_manager/photo_manager.dart';
@@ -103,6 +103,7 @@ class _GalleryTarget {
     }
 
     return relativePath.endsWith(relativeDirectory) ||
-        relativeDirectory.endsWith(relativePath.replaceAll(RegExp('/+$'), ''));
+        relativeDirectory.endsWith(relativePath.replaceAll(RegExp(r'/+$'), ''));
   }
 }
+
