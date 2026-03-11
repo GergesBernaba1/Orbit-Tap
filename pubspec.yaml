@@ -1,4 +1,4 @@
-name: orbit_tap
+﻿name: orbit_tap
 description: Private vault app for hiding images, videos, contacts, and app shortcuts.
 publish_to: none
 version: 1.0.0+1
@@ -17,8 +17,11 @@ dependencies:
   intl: ^0.19.0
   path: ^1.9.0
   path_provider: ^2.1.4
+  photo_manager: ^3.8.3
   shared_preferences: ^2.3.2
+  syncfusion_flutter_pdfviewer: ^28.2.12
   uuid: ^4.5.1
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +30,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+

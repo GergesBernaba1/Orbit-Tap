@@ -1,12 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'screens/decoy_game_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/android_source_access_service.dart';
 import 'services/contact_service.dart';
 import 'services/media_export_service.dart';
 import 'services/private_apps_service.dart';
 import 'services/security_service.dart';
+import 'services/shared_media_removal_service.dart';
 import 'services/vault_repository.dart';
 import 'state/vault_controller.dart';
 
@@ -29,6 +31,8 @@ class _OrbitTapAppState extends State<OrbitTapApp> {
       contactService: ContactService(),
       privateAppsService: PrivateAppsService(),
       mediaExportService: MediaExportService(),
+      sharedMediaRemovalService: SharedMediaRemovalService(),
+      androidSourceAccessService: AndroidSourceAccessService(),
     )..initialize();
   }
 
@@ -82,3 +86,4 @@ class _SplashScreen extends StatelessWidget {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-enum VaultItemType { image, video, contact, app }
+enum VaultItemType { image, video, contact, app, folder }
 
 class VaultItem {
   const VaultItem({

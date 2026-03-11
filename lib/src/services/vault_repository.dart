@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -9,20 +9,22 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/device_contact.dart';
+import '../models/hidden_folder_entry.dart';
 import '../models/installed_app.dart';
+import '../models/picked_vault_file.dart';
 import '../models/vault_item.dart';
 import 'security_service.dart';
 
-class ImportMediaResult {
-  const ImportMediaResult({
+class ImportVaultResult {
+  const ImportVaultResult({
     required this.items,
     required this.importedCount,
-    required this.sourceDeletionFailures,
+    this.failedSourcePaths = const [],
   });
 
   final List<VaultItem> items;
   final int importedCount;
-  final int sourceDeletionFailures;
+  final List<String> failedSourcePaths;
 }
 
 class VaultRepository {
@@ -48,27 +50,21 @@ class VaultRepository {
       ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
   }
 
-  Future<ImportMediaResult> importMedia({
+  Future<ImportVaultResult> importMedia({
     required SecurityService securityService,
-    required List<String> sourcePaths,
+    required List<PickedVaultFile> sourceFiles,
     required VaultItemType type,
     required List<VaultItem> currentItems,
   }) async {
     final secretKey = securityService.requireSessionKey();
     final filesDir = await _filesDir();
     final updated = List<VaultItem>.from(currentItems);
-    final importedSourceFiles = <File>[];
+    var importedCount = 0;
 
-    for (final sourcePath in sourcePaths) {
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) {
-        continue;
-      }
-
+    for (final sourceFile in sourceFiles) {
       final id = _uuid.v4();
-      final originalName = path.basename(sourcePath);
-      final originalBytes = await sourceFile.readAsBytes();
-      final encryptedBytes = await _encryptBytes(originalBytes, secretKey);
+      final originalName = sourceFile.displayName;
+      final encryptedBytes = await _encryptBytes(sourceFile.bytes, secretKey);
       final payloadPath = path.join(filesDir.path, '$id.vlt');
       await File(payloadPath).writeAsBytes(encryptedBytes, flush: true);
 
@@ -79,7 +75,7 @@ class VaultRepository {
           title: path.basenameWithoutExtension(originalName),
           subtitle: originalName,
           createdAt: DateTime.now(),
-          sizeBytes: originalBytes.length,
+          sizeBytes: sourceFile.bytes.length,
           payloadPath: payloadPath,
           metadata: <String, dynamic>{
             'originalName': originalName,
@@ -87,28 +83,147 @@ class VaultRepository {
           },
         ),
       );
-      importedSourceFiles.add(sourceFile);
+      importedCount += 1;
     }
 
     await _saveIndex(updated, secretKey);
 
-    var sourceDeletionFailures = 0;
-    for (final sourceFile in importedSourceFiles) {
-      try {
-        if (await sourceFile.exists()) {
-          await sourceFile.delete();
+    updated.sort((left, right) => right.createdAt.compareTo(left.createdAt));
+    return ImportVaultResult(
+      items: updated,
+      importedCount: importedCount,
+    );
+  }
+
+  Future<ImportVaultResult> importFolder({
+    required SecurityService securityService,
+    required String sourceRootPath,
+    required List<VaultItem> currentItems,
+  }) async {
+    final rootDirectory = Directory(sourceRootPath);
+    if (!await rootDirectory.exists()) {
+      throw StateError('Selected folder does not exist.');
+    }
+
+    final allEntities = await rootDirectory.list(recursive: true, followLinks: false).toList();
+    final sourceFiles = allEntities.whereType<File>().toList();
+    if (sourceFiles.isEmpty) {
+      throw StateError('Selected folder is empty.');
+    }
+
+    final secretKey = securityService.requireSessionKey();
+    final updated = List<VaultItem>.from(currentItems);
+    final folderId = _uuid.v4();
+    final folderName = path.basename(sourceRootPath);
+    final folderPayloadRoot = Directory(path.join((await _foldersDir()).path, folderId));
+    await folderPayloadRoot.create(recursive: true);
+
+    final entries = <Map<String, dynamic>>[];
+    var totalBytes = 0;
+
+    for (final sourceFile in sourceFiles) {
+      final relativePath = path.relative(sourceFile.path, from: sourceRootPath);
+      final originalBytes = await sourceFile.readAsBytes();
+      final encryptedBytes = await _encryptBytes(originalBytes, secretKey);
+      final payloadPath = path.join(folderPayloadRoot.path, '$relativePath.vlt');
+      final payloadFile = File(payloadPath);
+      await payloadFile.parent.create(recursive: true);
+      await payloadFile.writeAsBytes(encryptedBytes, flush: true);
+
+      final entry = HiddenFolderEntry(
+        relativePath: relativePath,
+        payloadPath: payloadPath,
+        sizeBytes: originalBytes.length,
+        extension: path.extension(sourceFile.path),
+      );
+      entries.add(entry.toJson());
+      totalBytes += originalBytes.length;
+    }
+
+    updated.add(
+      VaultItem(
+        id: folderId,
+        type: VaultItemType.folder,
+        title: folderName,
+        subtitle: '${sourceFiles.length} files',
+        createdAt: DateTime.now(),
+        sizeBytes: totalBytes,
+        metadata: <String, dynamic>{
+          'originalFolderName': folderName,
+          'payloadRootPath': folderPayloadRoot.path,
+          'fileCount': sourceFiles.length,
+          'entries': entries,
+        },
+      ),
+    );
+
+    await _saveIndex(updated, secretKey);
+
+    final failedSourcePaths = await _deleteSourceFiles(
+      sourceFiles.map((file) => file.path).toList(),
+    );
+    if (failedSourcePaths.isEmpty) {
+      await _deleteEmptyDirectoriesUnder(rootDirectory);
+      if (await rootDirectory.exists()) {
+        try {
+          await rootDirectory.delete();
+        } catch (_) {
+          // Best effort only.
         }
-      } catch (_) {
-        sourceDeletionFailures += 1;
       }
     }
 
     updated.sort((left, right) => right.createdAt.compareTo(left.createdAt));
-    return ImportMediaResult(
+    return ImportVaultResult(
       items: updated,
-      importedCount: importedSourceFiles.length,
-      sourceDeletionFailures: sourceDeletionFailures,
+      importedCount: sourceFiles.length,
+      failedSourcePaths: failedSourcePaths,
     );
+  }
+
+  List<HiddenFolderEntry> folderEntries(VaultItem item) {
+    if (item.type != VaultItemType.folder) {
+      return const [];
+    }
+
+    final rawEntries = item.metadata['entries'] as List<dynamic>? ?? const [];
+    final entries = rawEntries
+        .map((entry) => HiddenFolderEntry.fromJson((entry as Map<dynamic, dynamic>).cast<String, dynamic>()))
+        .toList();
+    entries.sort((left, right) => left.relativePath.compareTo(right.relativePath));
+    return entries;
+  }
+
+  Future<Uint8List> readFolderEntryBytes({
+    required SecurityService securityService,
+    required HiddenFolderEntry entry,
+  }) async {
+    final encrypted = await File(entry.payloadPath).readAsBytes();
+    return _decryptBytes(encrypted, securityService.requireSessionKey());
+  }
+
+  Future<void> restoreFolder({
+    required SecurityService securityService,
+    required VaultItem item,
+    required String destinationDirectoryPath,
+  }) async {
+    if (item.type != VaultItemType.folder) {
+      throw StateError('Item is not a hidden folder.');
+    }
+
+    final folderName = (item.metadata['originalFolderName'] as String?) ?? item.title;
+    final restoreRoot = Directory(path.join(destinationDirectoryPath, folderName));
+    await restoreRoot.create(recursive: true);
+
+    for (final entry in folderEntries(item)) {
+      final clearBytes = await readFolderEntryBytes(
+        securityService: securityService,
+        entry: entry,
+      );
+      final outputFile = File(path.join(restoreRoot.path, entry.relativePath));
+      await outputFile.parent.create(recursive: true);
+      await outputFile.writeAsBytes(clearBytes, flush: true);
+    }
   }
 
   Future<List<VaultItem>> addContact({
@@ -173,11 +288,22 @@ class VaultRepository {
     required List<VaultItem> currentItems,
   }) async {
     final updated = currentItems.where((item) => item.id != target.id).toList();
-    final payloadPath = target.payloadPath;
-    if (payloadPath != null) {
-      final file = File(payloadPath);
-      if (await file.exists()) {
-        await file.delete();
+
+    if (target.type == VaultItemType.folder) {
+      final payloadRootPath = target.metadata['payloadRootPath'] as String?;
+      if (payloadRootPath != null) {
+        final folderRoot = Directory(payloadRootPath);
+        if (await folderRoot.exists()) {
+          await folderRoot.delete(recursive: true);
+        }
+      }
+    } else {
+      final payloadPath = target.payloadPath;
+      if (payloadPath != null) {
+        final file = File(payloadPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
       }
     }
 
@@ -212,6 +338,15 @@ class VaultRepository {
     return filesDir;
   }
 
+  Future<Directory> _foldersDir() async {
+    final root = await _vaultRoot();
+    final foldersDir = Directory(path.join(root.path, 'folders'));
+    if (!await foldersDir.exists()) {
+      await foldersDir.create(recursive: true);
+    }
+    return foldersDir;
+  }
+
   Future<Directory> _vaultRoot() async {
     final baseDir = await getApplicationSupportDirectory();
     final root = Directory(path.join(baseDir.path, 'hidden_vault'));
@@ -236,6 +371,44 @@ class VaultRepository {
     );
     final encrypted = await _encryptBytes(clearBytes, secretKey);
     await indexFile.writeAsBytes(encrypted, flush: true);
+  }
+
+  Future<List<String>> _deleteSourceFiles(List<String> sourcePaths) async {
+    final failedSourcePaths = <String>[];
+    for (final sourcePath in sourcePaths) {
+      final sourceFile = File(sourcePath);
+      try {
+        if (await sourceFile.exists()) {
+          await sourceFile.delete();
+        }
+      } catch (_) {
+        failedSourcePaths.add(sourcePath);
+      }
+    }
+    return failedSourcePaths;
+  }
+
+  Future<void> _deleteEmptyDirectoriesUnder(Directory rootDirectory) async {
+    final allDirectories = await rootDirectory
+        .list(recursive: true, followLinks: false)
+        .where((entity) => entity is Directory)
+        .cast<Directory>()
+        .toList();
+
+    allDirectories.sort(
+      (left, right) => right.path.length.compareTo(left.path.length),
+    );
+
+    for (final directory in allDirectories) {
+      try {
+        final children = await directory.list(followLinks: false).toList();
+        if (children.isEmpty) {
+          await directory.delete();
+        }
+      } catch (_) {
+        // Best effort only.
+      }
+    }
   }
 
   Future<Uint8List> _encryptBytes(List<int> clearBytes, SecretKey secretKey) async {

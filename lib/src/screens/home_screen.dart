@@ -1,9 +1,10 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/device_contact.dart';
+import 'folder_browser_screen.dart';
 import '../models/installed_app.dart';
 import '../models/vault_item.dart';
 import '../state/vault_controller.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'Videos',
     'Contacts',
     'Apps',
+    'Folders',
   ];
 
   @override
@@ -62,6 +64,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         await _showAppPicker();
         break;
+      case 5:
+        await widget.controller.importFolder();
+        break;
       default:
         break;
     }
@@ -83,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       _ContactsPage(controller: widget.controller),
       _AppsPage(controller: widget.controller),
+      _FoldersPage(controller: widget.controller),
     ];
 
     return Scaffold(
@@ -124,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.movie_outlined), label: 'Videos'),
           NavigationDestination(icon: Icon(Icons.contacts_outlined), label: 'Contacts'),
           NavigationDestination(icon: Icon(Icons.apps_outlined), label: 'Apps'),
+          NavigationDestination(icon: Icon(Icons.folder_copy_outlined), label: 'Folders'),
         ],
       ),
     );
@@ -240,7 +247,7 @@ class _OverviewPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Media is encrypted locally. Contacts and app entries stay behind the same vault lock.',
+                'Media, folders, contacts, and private app entries stay encrypted behind one lock.',
                 style: TextStyle(color: Colors.white),
               ),
             ],
@@ -253,6 +260,7 @@ class _OverviewPage extends StatelessWidget {
           children: [
             _StatCard(label: 'Images', value: controller.countFor(VaultItemType.image).toString()),
             _StatCard(label: 'Videos', value: controller.countFor(VaultItemType.video).toString()),
+            _StatCard(label: 'Folders', value: controller.countFor(VaultItemType.folder).toString()),
             _StatCard(label: 'Contacts', value: controller.countFor(VaultItemType.contact).toString()),
             _StatCard(label: 'Apps', value: controller.countFor(VaultItemType.app).toString()),
           ],
@@ -273,7 +281,7 @@ class _OverviewPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   controller.appsFeatureSupported
-                      ? 'Android supports a private in-app launcher list here. True launcher hiding still requires special device privileges.'
+                      ? 'Files, media, and folders can be moved into encrypted app storage. True launcher-level app hiding still requires special device privileges.'
                       : 'On iOS, app vault entries are informational only because the platform restricts other app access.',
                 ),
               ],
@@ -368,10 +376,10 @@ class _VaultListPage extends StatelessWidget {
                 DateFormat('MMM d, yyyy').format(item.createdAt),
               ].join('  |  '),
             ),
-            trailing: PopupMenuButton<_MediaAction>(
+            trailing: PopupMenuButton<_VaultEntryAction>(
               onSelected: (action) async {
                 switch (action) {
-                  case _MediaAction.unhide:
+                  case _VaultEntryAction.unhide:
                     final message = await controller.unhideMedia(item);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,22 +387,22 @@ class _VaultListPage extends StatelessWidget {
                       );
                     }
                     break;
-                  case _MediaAction.delete:
+                  case _VaultEntryAction.delete:
                     await controller.deleteItem(item);
                     break;
                 }
               },
               itemBuilder: (context) => const [
-                PopupMenuItem<_MediaAction>(
-                  value: _MediaAction.unhide,
+                PopupMenuItem<_VaultEntryAction>(
+                  value: _VaultEntryAction.unhide,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.file_upload_outlined),
                     title: Text('Unhide'),
                   ),
                 ),
-                PopupMenuItem<_MediaAction>(
-                  value: _MediaAction.delete,
+                PopupMenuItem<_VaultEntryAction>(
+                  value: _VaultEntryAction.delete,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.delete_outline),
@@ -410,7 +418,107 @@ class _VaultListPage extends StatelessWidget {
   }
 }
 
-enum _MediaAction { unhide, delete }
+class _FoldersPage extends StatelessWidget {
+  const _FoldersPage({required this.controller});
+
+  final VaultController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final folders = controller.itemsFor(VaultItemType.folder);
+    if (folders.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Hide complete folders with their internal structure, then restore them later to a new location.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: folders.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = folders[index];
+        final fileCount = item.metadata['fileCount'] as int?;
+        final subtitleParts = <String>[
+          if (fileCount != null) '$fileCount files',
+          if (item.sizeBytes != null) _formatBytes(item.sizeBytes!),
+          DateFormat('MMM d, yyyy').format(item.createdAt),
+        ];
+
+        return Card(
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.folder_copy_outlined),
+            ),
+            title: Text(item.title),
+            subtitle: Text(subtitleParts.join('  |  ')),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FolderBrowserScreen(
+                    controller: controller,
+                    folder: item,
+                  ),
+                ),
+              );
+            },
+            trailing: PopupMenuButton<_VaultEntryAction>(
+              onSelected: (action) async {
+                switch (action) {
+                  case _VaultEntryAction.unhide:
+                    final message = await controller.unhideFolder(item);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
+                    }
+                    break;
+                  case _VaultEntryAction.delete:
+                    await controller.deleteItem(item);
+                    break;
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<_VaultEntryAction>(
+                  value: _VaultEntryAction.unhide,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.drive_folder_upload_outlined),
+                    title: Text('Unhide'),
+                  ),
+                ),
+                PopupMenuItem<_VaultEntryAction>(
+                  value: _VaultEntryAction.delete,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Delete'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _VaultEntryAction { unhide, delete }
 
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({
@@ -692,3 +800,5 @@ String _formatBytes(int bytes) {
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
+
+
